@@ -4,8 +4,24 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/mossid/dr-alice/radicle/types"
+	"github.com/mossid/dr-alice/types"
 )
+
+func SafeExpr(str string) (res types.Value, ok bool) {
+	st := &ParserState{[]byte(str)}
+	spaceConsume(st)
+	res, ok = Value(st).(types.Value)
+	spaceConsume(st)
+	return
+}
+
+func Expr(str string) types.Value {
+	res, ok := SafeExpr(str)
+	if !ok {
+		panic("panicccccc")
+	}
+	return res
+}
 
 func Value(st *ParserState) interface{} {
 	v, ok := Choice(
@@ -17,7 +33,7 @@ func Value(st *ParserState) interface{} {
 		Quote,
 		List,
 		Vec,
-	//	Dict,
+		Dict,
 	)(st).(types.Value)
 	if !ok {
 		return nil
@@ -161,7 +177,6 @@ func List(st *ParserState) interface{} {
 	var vs []types.Value
 	for {
 		if st.CheckConsumeStringEmpty(")") != nil {
-
 			return types.NewList(vs...)
 		}
 
@@ -184,24 +199,42 @@ func Vec(st *ParserState) interface{} {
 
 	var vs []types.Value
 	for {
+		if st.CheckConsumeStringEmpty("]") != nil {
+			return types.NewVector(vs...)
+		}
+
 		v, ok := Value(st).(types.Value)
 		if !ok {
-			break
+			return nil
 		}
 		vs = append(vs, v)
 		spaceConsume(st)
 	}
+}
 
-	if st.CheckConsumeStringEmpty("]") == nil {
+func Dict(st *ParserState) interface{} {
+	if st.CheckConsumeStringEmpty("{") == nil {
 		return nil
 	}
 
-	return types.NewVector(vs...)
-}
+	spaceConsume(st)
 
-/*
-// TODO
-func Dict(st *ParserState) interface{} {
+	var vs []types.Value
+	for {
+		if st.CheckConsumeStringEmpty("}") != nil {
+			return types.NewDict(vs...)
+		}
 
+		k, ok := Value(st).(types.Value)
+		if !ok {
+			return nil
+		}
+		v, ok := Value(st).(types.Value)
+		if !ok {
+			return nil
+		}
+
+		vs = append(vs, k, v)
+		spaceConsume(st)
+	}
 }
-*/

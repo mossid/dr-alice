@@ -20,6 +20,10 @@ func WrongNumberArgsError(fn string, exp int, act int) error {
 	return newError("WrongNumberArgs", fn, "expected %d but %d", exp, act)
 }
 
+func TypeError(fn string, exp Value, act Value) error {
+	return newError("TypeError", fn, "expected %T but %T", exp, act)
+}
+
 func PatternMatchError(fn string, desc string) error {
 	return newError("PatternMatch", fn, desc)
 }
@@ -30,4 +34,8 @@ func NonFunctionCalledError(fun Value) error {
 
 func UnknownIdentifierError(id Ident) error {
 	return newError("UnknownIdentifier", "", id.String())
+}
+
+func ImpossibleError(fn string, desc string) error {
+	return newError("Impossible", fn, desc)
 }

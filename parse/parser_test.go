@@ -21,18 +21,21 @@ var values0 = concat(yesstrings, yesbools, keywords, nums, atoms)
 var quotes0 = quote(values0)
 var lists0 = genlist(values0)
 var vecs0 = genvec(values0)
+var dicts0 = gendict(values0)
 
-var values1 = concat(values0, quotes0, lists0, vecs0)
+var values1 = concat(values0, quotes0, lists0, vecs0, dicts0)
 var quotes1 = quote(values1)
 var lists1 = genlist(values1)
 var vecs1 = genvec(values1)
+var dicts1 = gendict(values1)
 
-var values2 = concat(values1, quotes1, lists1, vecs1)
+var values2 = concat(values1, quotes1, lists1, vecs1, dicts1)
 var quotes2 = quote(values2)
 var lists2 = genlist(values2)
 var vecs2 = genvec(values2)
+var dicts2 = gendict(values2)
 
-var values = concat(values2, quotes2, lists2, vecs2)
+var values = concat(values2, quotes2, lists2, vecs2, dicts2)
 
 func concat(strss ...[]string) (res []string) {
 	for _, strs := range strss {
@@ -44,7 +47,7 @@ func concat(strss ...[]string) (res []string) {
 func gen(b, e string, vs []string) (res []string) {
 	res = make([]string, 5)
 	for n := range res {
-		elems := make([]string, 5)
+		elems := make([]string, 6)
 		for i := range elems {
 			elems[i] = vs[rand.Intn(len(vs))]
 		}
@@ -59,6 +62,10 @@ func genlist(vs []string) []string {
 
 func genvec(vs []string) []string {
 	return gen("[", "]", vs)
+}
+
+func gendict(vs []string) []string {
+	return gen("{", "}", vs)
 }
 
 func quote(vs []string) (res []string) {

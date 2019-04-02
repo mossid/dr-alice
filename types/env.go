@@ -1,11 +1,16 @@
 package types
 
+import (
+	"strings"
+)
+
 type Env interface {
 	Set(name Ident, value Value) Env
 	Get(name Ident) (Value, bool)
 	CloneMutable() Env
 	CloneImmutable() Env
 	IsImmutable() bool
+	String() string
 }
 
 type node struct {
@@ -20,6 +25,10 @@ type listEnv struct {
 
 var _ Env = (*listEnv)(nil)
 
+func NewListEnv() Env {
+	return &listEnv{}
+}
+
 func (env *listEnv) Set(name Ident, value Value) Env {
 	res := &listEnv{}
 	res.top = &node{name, value, env.top}
@@ -27,12 +36,10 @@ func (env *listEnv) Set(name Ident, value Value) Env {
 }
 
 func (env *listEnv) Get(name Ident) (Value, bool) {
-	ptr := env.top
-	for ptr != nil {
+	for ptr := env.top; ptr != nil; ptr = ptr.next {
 		if ptr.name == name {
 			return ptr.value, true
 		}
-		ptr = ptr.next
 	}
 	return nil, false
 }
@@ -43,16 +50,22 @@ func (env *listEnv) CloneImmutable() Env {
 
 func (env *listEnv) CloneMutable() Env {
 	res := &mapEnv{make(map[Ident]Value)}
-	ptr := env.top
-	for ptr != nil {
+	for ptr := env.top; ptr != nil; ptr = ptr.next {
 		res.m[ptr.name] = ptr.value
-		ptr = ptr.next
 	}
 	return res
 }
 
 func (env *listEnv) IsImmutable() bool {
 	return true
+}
+
+func (env *listEnv) String() string {
+	var pairs []string
+	for ptr := env.top; ptr != nil; ptr = ptr.next {
+		pairs = append(pairs, ptr.name.String()+" => "+ptr.value.String())
+	}
+	return "{" + strings.Join(pairs, ", ") + "}"
 }
 
 type mapEnv struct {
@@ -89,4 +102,8 @@ func (env *mapEnv) CloneMutable() Env {
 
 func (env *mapEnv) IsImmutable() bool {
 	return false
+}
+
+func (env *mapEnv) String() string {
+	return (*env).String()
 }
