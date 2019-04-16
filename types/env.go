@@ -2,15 +2,17 @@ package types
 
 import (
 	"strings"
+
+	"github.com/mossid/dr-alice/types/proto"
 )
 
 type Env interface {
+	Value
 	Set(name Ident, value Value) Env
 	Get(name Ident) (Value, bool)
 	CloneMutable() Env
 	CloneImmutable() Env
 	IsImmutable() bool
-	String() string
 }
 
 type node struct {
@@ -60,10 +62,22 @@ func (env *listEnv) IsImmutable() bool {
 	return true
 }
 
+func (env *listEnv) Equal(v Value) bool {
+	panic("not implemented")
+}
+
+func (env *listEnv) Proto() *proto.Value {
+	panic("not implemented")
+}
+
+func (env *listEnv) Type() ValueType {
+	return VEnv
+}
+
 func (env *listEnv) String() string {
 	var pairs []string
 	for ptr := env.top; ptr != nil; ptr = ptr.next {
-		pairs = append(pairs, ptr.name.String()+" => "+ptr.value.String())
+		pairs = append(pairs, ptr.name+" => "+ptr.value.String())
 	}
 	return "{" + strings.Join(pairs, ", ") + "}"
 }
@@ -106,4 +120,15 @@ func (env *mapEnv) IsImmutable() bool {
 
 func (env *mapEnv) String() string {
 	return (*env).String()
+}
+
+func (env *mapEnv) Equal(v Value) bool {
+	panic("not implemented")
+}
+
+func (env *mapEnv) Proto() *proto.Value {
+	panic("not implemented")
+}
+func (env *mapEnv) Type() ValueType {
+	return VEnv
 }

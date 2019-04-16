@@ -16,6 +16,7 @@ var nobools = []string{`#`}
 var keywords = []string{`:hello`, `:00123`, `:$@//`}
 var nums = []string{`+36`, `-9986`, `324567`}
 var atoms = []string{`atom`, `<atom1234@:`}
+var comments = []string{";;line comment\n", "#|\nblock\ncommment\n|#"} // TODO
 
 var values0 = concat(yesstrings, yesbools, keywords, nums, atoms)
 var quotes0 = quote(values0)

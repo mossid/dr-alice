@@ -28,7 +28,7 @@ func church(body string) string {
 }
 
 func parseEval(env types.Env, expr string) types.Value {
-	state := EmptyState().SetEnv(env)
+	state := EmptyBindings().SetEnv(env)
 	_, v, err := BaseEval(state, parse.Expr(expr))
 	if err != nil {
 		panic(err)
@@ -146,7 +146,7 @@ func TestBaseEval(t *testing.T) {
 
 	for i, tc := range tcs {
 		fmt.Println("Running test", i)
-		state := EmptyState().SetEnv(tc.Env)
+		state := EmptyBindings().SetEnv(tc.Env)
 		_, v, err := BaseEval(state, tc.Input)
 		if tc.Result != nil {
 			require.NoError(t, err, "Got error(%d): %s", i, err)

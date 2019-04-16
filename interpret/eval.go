@@ -4,63 +4,46 @@ import (
 	"github.com/mossid/dr-alice/types"
 )
 
-type Intmap struct {
-	m    map[uint64]Value
-	next uint64
-}
-
-func NewIntmap() *Intmap {
-	return &Intmap{
-		m:    make(map[uint64]Value),
-		next: 0,
-	}
-}
-
-func (m *Intmap) Insert(v Value) uint64 {
-	ix := m.next
-	m.m[ix] = v
-	m.next = ix + 1
-	return ix
-}
-
-func (m *Intmap) Get(ix uint64) (res Value, ok bool) {
-	res, ok = m.m[ix]
-	return
-}
-
-func (m *Intmap) Set(ix uint64, v Value) {
-	m.m[ix] = v
-}
-
 // Core.Bindings
-type State struct {
+type Bindings struct {
 	Env    Env
-	PrimFn func(Ident) PrimOp
+	PrimFn func(Ident) PrimOpRun
 	Refs   *Intmap
 	//	Mem map[Ref]Value
 }
 
-func NewState(env Env, fn func(Ident) PrimOp, refs *Intmap) *State {
-	return &State{
+func NewBindings(env Env, fn func(Ident) PrimOpRun, refs *Intmap) *Bindings {
+	return &Bindings{
 		Env:    env,
 		PrimFn: fn,
 		Refs:   refs,
 	}
 }
 
-func EmptyState() *State {
-	return NewState(types.NewListEnv(), MapPrimFn, NewIntmap())
+func EmptyBindings() *Bindings {
+	return NewBindings(types.NewListEnv(), MapPrimOpRuns(PurePrimFns()), types.NewIntmap())
 }
 
-func (s *State) ModifyEnv(f func(Env) Env) *State {
-	return NewState(f(s.Env), s.PrimFn, s.Refs)
+func (s *Bindings) ModifyEnv(f func(Env) Env) *Bindings {
+	return NewBindings(f(s.Env), s.PrimFn, s.Refs)
 }
 
-func (s *State) SetEnv(env Env) *State {
-	return NewState(env, s.PrimFn, s.Refs)
+func (s *Bindings) SetEnv(env Env) *Bindings {
+	return NewBindings(env, s.PrimFn, s.Refs)
 }
 
-func BaseEval(s *State, v Value) (*State, Value, error) {
+func (s *Bindings) SetRefs(refs *Intmap) *Bindings {
+	return NewBindings(s.Env, s.PrimFn, refs)
+}
+
+func (s *Bindings) ToRadicle() Value {
+	return &State{
+		Env:  s.Env.CloneImmutable(),
+		Refs: s.Refs, // TODO: clone
+	}
+}
+
+func BaseEval(s *Bindings, v Value) (*Bindings, Value, error) {
 	switch v := v.(type) {
 	case *Atom:
 		// BEGIN
@@ -115,7 +98,7 @@ func BaseEval(s *State, v Value) (*State, Value, error) {
 	}
 }
 
-func dollarDollar(s *State, f Value, args []Value) (*State, Value, error) {
+func dollarDollar(s *Bindings, f Value, args []Value) (*Bindings, Value, error) {
 	fatom, ok := f.(*Atom)
 	if ok {
 		f0 := MapSpecialForm(fatom.Ident())
@@ -138,7 +121,7 @@ func dollarDollar(s *State, f Value, args []Value) (*State, Value, error) {
 	return callFn(s0, f0, args0)
 }
 
-func callFn(s *State, v Value, args []Value) (*State, Value, error) {
+func callFn(s *Bindings, v Value, args []Value) (*Bindings, Value, error) {
 	switch v := v.(type) {
 	case *Lambda:
 		if len(v.Args) != len(args) {
@@ -171,13 +154,13 @@ func callFn(s *State, v Value, args []Value) (*State, Value, error) {
 }
 
 /*
-func Eval(s *State, v Value) (*State, Value, error) {
+func Eval(s *Bindings, v Value) (*Bindings, Value, error) {
 	e := s.GetEnv(NewIdent("eval"))
 
 }
 */
 /*
-func EvalExpr(s State, v0 *List) (State, Value, error) {
+func EvalExpr(s Bindings, v0 *List) (Bindings, Value, error) {
 	v := v0.List()
 	fatom, ok := v[0].(*Atom)
 	if !ok {
@@ -192,7 +175,7 @@ func EvalExpr(s State, v0 *List) (State, Value, error) {
 	}
 }
 
-func ApplyBase(s State, v Value) (State, Value, error) {
+func ApplyBase(s Bindings, v Value) (Bindings, Value, error) {
 
 }
 */

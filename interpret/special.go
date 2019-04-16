@@ -1,6 +1,6 @@
 package radicle
 
-type SpecialForm func(*State, []Value) (*State, Value, error)
+type SpecialForm func(*Bindings, []Value) (*Bindings, Value, error)
 
 func MapSpecialForm(id Ident) SpecialForm {
 	switch id {
@@ -18,12 +18,14 @@ func MapSpecialForm(id Ident) SpecialForm {
 		return iff
 	case "cond":
 		return cond
+	case "module":
+		return module
 	default:
 		return nil
 	}
 }
 
-func fn(s *State, v []Value) (*State, Value, error) {
+func fn(s *Bindings, v []Value) (*Bindings, Value, error) {
 	if len(v) < 2 {
 		return nil, nil, SpecialFormError("fn", "need an argument vector and a body")
 	}
@@ -47,7 +49,7 @@ func fn(s *State, v []Value) (*State, Value, error) {
 	return s, &Lambda{iargs, bs, s.Env.CloneImmutable()}, nil
 }
 
-func quote(s *State, v []Value) (*State, Value, error) {
+func quote(s *Bindings, v []Value) (*Bindings, Value, error) {
 	if len(v) != 1 {
 		return nil, nil, WrongNumberArgsError("quote", 1, len(v))
 	}
@@ -55,7 +57,7 @@ func quote(s *State, v []Value) (*State, Value, error) {
 	return s, v[0], nil
 }
 
-func defintern(s *State, v []Value, isrec bool) (*State, Value, error) {
+func defintern(s *Bindings, v []Value, isrec bool) (*Bindings, Value, error) {
 	var fnname string
 	if isrec {
 		fnname = "def-rec"
@@ -98,15 +100,15 @@ func defintern(s *State, v []Value, isrec bool) (*State, Value, error) {
 	}
 }
 
-func def(s *State, v []Value) (*State, Value, error) {
+func def(s *Bindings, v []Value) (*Bindings, Value, error) {
 	return defintern(s, v, false)
 }
 
-func defrec(s *State, v []Value) (*State, Value, error) {
+func defrec(s *Bindings, v []Value) (*Bindings, Value, error) {
 	return defintern(s, v, true)
 }
 
-func do(s *State, v []Value) (s0 *State, res Value, err error) {
+func do(s *Bindings, v []Value) (s0 *Bindings, res Value, err error) {
 	s0 = s
 	for _, v0 := range v {
 		s0, res, err = BaseEval(s0, v0)
@@ -115,11 +117,11 @@ func do(s *State, v []Value) (s0 *State, res Value, err error) {
 }
 
 /*
-func catch(s *State, v []Value) (s0 *State, res Value, err error) {
+func catch(s *Bindings, v []Value) (s0 *Bindings, res Value, err error) {
 
 }
 */
-func iff(s *State, v []Value) (*State, Value, error) {
+func iff(s *Bindings, v []Value) (*Bindings, Value, error) {
 	if len(v) != 3 {
 		return nil, nil, WrongNumberArgsError("if", 3, len(v))
 	}
@@ -141,7 +143,7 @@ func iff(s *State, v []Value) (*State, Value, error) {
 	return BaseEval(s0, body)
 }
 
-func cond(s *State, v []Value) (*State, Value, error) {
+func cond(s *Bindings, v []Value) (*Bindings, Value, error) {
 	if len(v)%2 != 0 {
 		return nil, nil, WrongNumberArgsError("cond", 2, len(v))
 	}
@@ -165,8 +167,12 @@ func cond(s *State, v []Value) (*State, Value, error) {
 	return BaseEval(s0, v[1])
 }
 
+func module(s *Bindings, v []Value) (*Bindings, Value, error) {
+	return nil, nil, nil // XXX
+}
+
 /*
-func match(s *State, v []Value) (*State, Value, error) {
+func match(s *Bindings, v []Value) (*Bindings, Value, error) {
 	if len(v) < 1 {
 		return nil, nil, PatternMatchError("match", "no value")
 	}
@@ -182,7 +188,7 @@ func match(s *State, v []Value) (*State, Value, error) {
 	return goMatches(s0, v0, v[1:])
 }
 
-func goMatches(s *State, v Value, cases []Value) (*State, Value, error {
+func goMatches(s *Bindings, v Value, cases []Value) (*Bindings, Value, error {
 	if len(cases) == 0 {
 		return nil, nil, PatternMatchError("match", "no match")
 	}

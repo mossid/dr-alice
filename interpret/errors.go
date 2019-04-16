@@ -33,9 +33,13 @@ func NonFunctionCalledError(fun Value) error {
 }
 
 func UnknownIdentifierError(id Ident) error {
-	return newError("UnknownIdentifier", "", id.String())
+	return newError("UnknownIdentifier", "", id)
 }
 
 func ImpossibleError(fn string, desc string) error {
 	return newError("Impossible", fn, desc)
+}
+
+func OtherError(fn string, desc string) error {
+	return newError("Other", fn, desc)
 }

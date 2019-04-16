@@ -3,16 +3,14 @@ package types
 import (
 	"strconv"
 	"strings"
+
+	"github.com/mossid/dr-alice/types/proto"
 )
 
-type Ident string
+type Ident = string
 
-func NewIdent(s string) Ident {
-	return Ident(s) // TODO
-}
-
-func (i Ident) String() string {
-	return string(i)
+func NewIdent(s string) string {
+	return s
 }
 
 type ValueType byte
@@ -41,6 +39,7 @@ type Value interface {
 	Type() ValueType
 	String() string
 	Equal(Value) bool
+	Proto() *proto.Value
 }
 
 type Atom Ident
@@ -48,7 +47,7 @@ type Atom Ident
 func NewAtom(str string) *Atom { res := Atom(NewIdent(str)); return &res }
 func (*Atom) Type() ValueType  { return VAtom }
 func (a *Atom) Ident() Ident   { return Ident(*a) }
-func (a *Atom) String() string { return a.Ident().String() }
+func (a *Atom) String() string { return a.Ident() }
 func (a *Atom) Equal(v Value) bool {
 	a0, ok := v.(*Atom)
 	if !ok {
@@ -56,19 +55,25 @@ func (a *Atom) Equal(v Value) bool {
 	}
 	return a0.String() == a.String()
 }
+func (a *Atom) Proto() *proto.Value {
+	return &proto.Value{&proto.Value_Atom{&proto.Atom{a.String()}}}
+}
 
 type Keyword Ident
 
 func NewKeyword(str string) *Keyword { res := Keyword(NewIdent(str)); return &res }
 func (k *Keyword) Type() ValueType   { return VKeyword }
 func (k *Keyword) Ident() Ident      { return Ident(*k) }
-func (k *Keyword) String() string    { return ":" + k.Ident().String() }
+func (k *Keyword) String() string    { return ":" + k.Ident() }
 func (k *Keyword) Equal(v Value) bool {
 	k0, ok := v.(*Keyword)
 	if !ok {
 		return false
 	}
 	return k0.String() == k.String()
+}
+func (k *Keyword) Proto() *proto.Value {
+	return &proto.Value{&proto.Value_Keyword{&proto.Keyword{k.String()}}}
 }
 
 type String string
@@ -82,6 +87,9 @@ func (s *String) Equal(v Value) bool {
 		return false
 	}
 	return *s == *s0
+}
+func (s *String) Proto() *proto.Value {
+	return &proto.Value{&proto.Value_String_{&proto.String{s.String()}}}
 }
 
 type Bool bool
@@ -102,20 +110,39 @@ func (b *Bool) Equal(v Value) bool {
 	}
 	return *b0 == *b
 }
-
-type Num struct {
-	Dec
+func (b *Bool) Proto() *proto.Value {
+	return &proto.Value{&proto.Value_Boolean{&proto.Boolean{b.Bool()}}}
+}
+func (b *Bool) Unproto(pv *proto.Value) {
+	pa := pv.GetBoolean()
+	if pa == nil {
+		return
+	}
+	*b = Bool(pa.Boolean)
 }
 
-func NewNum(i int64) *Num     { return &Num{NewDec(i)} }
+type Num int64
+
+func NewNum(i int64) *Num     { res := Num(i); return &res }
 func (*Num) Type() ValueType  { return VNumber }
-func (n *Num) String() string { return n.String() }
+func (n *Num) String() string { return strconv.FormatInt(n.Num(), 10) }
+func (n *Num) Num() int64     { return int64(*n) }
 func (n *Num) Equal(v Value) bool {
 	n0, ok := v.(*Num)
 	if !ok {
 		return false
 	}
-	return n.Dec.Equal(n0.Dec)
+	return n0 == n
+}
+func (n *Num) Proto() *proto.Value {
+	return &proto.Value{&proto.Value_Num{&proto.Num{n.Num()}}}
+}
+func (n *Num) Unproto(pv *proto.Value) {
+	pa := pv.GetNum()
+	if pa == nil {
+		return
+	}
+	*n = Num(pa.Num)
 }
 
 type Lambda struct {
@@ -124,17 +151,17 @@ type Lambda struct {
 	Env    Env
 }
 
+func NewLambda(args []Ident, bodies []Value, env Env) *Lambda {
+	res := Lambda{args, bodies, env}
+	return &res
+}
 func (*Lambda) Type() ValueType { return VLambda }
 func (l *Lambda) String() string {
-	args := make([]string, len(l.Args))
-	for i, arg := range l.Args {
-		args[i] = arg.String()
-	}
 	bodies := make([]string, len(l.Bodies))
 	for i, body := range l.Bodies {
 		bodies[i] = body.String()
 	}
-	return "(fn [" + strings.Join(args, " ") + "] " + strings.Join(bodies, " ") + ")"
+	return "(fn [" + strings.Join(l.Args, " ") + "] " + strings.Join(bodies, " ") + ")"
 }
 func (l *Lambda) Equal(v Value) bool {
 	l0, ok := v.(*Lambda)
@@ -156,12 +183,44 @@ func (l *Lambda) Equal(v Value) bool {
 	}
 	return true
 }
+func (l *Lambda) Proto() *proto.Value {
+	bodies := make([]*proto.Value, len(l.Bodies))
+	for i, body := range l.Bodies {
+		bodies[i] = body.Proto()
+	}
+	return &proto.Value{&proto.Value_Lambda{&proto.Lambda{
+		l.Args,
+		bodies,
+		l.Env.Proto().GetEnv(),
+	}}}
+}
+func (l *Lambda) Unproto(pv *proto.Value) {
+	/*
+		pa := pv.GetLambda()
+		if pa == nil {
+			return
+		}
+		bodies := make([]Value, len(pa.Bodies))
+		for i, body := range pa.Bodies {
+			bodies[i]
+		}
+		*l = Lambda{
+			Args:   pa.Args,
+			Bodies: pa.Bodies,
+			Env:    pa.Env,
+		}
+	*/
+}
 
 type LambdaRec struct {
 	Self Ident
 	*Lambda
 }
 
+func NewLambdaRec(self Ident, lambda *Lambda) *LambdaRec {
+	res := LambdaRec{self, lambda}
+	return &res
+}
 func (l *LambdaRec) Equal(v Value) bool {
 	l0, ok := v.(*LambdaRec)
 	if !ok {
@@ -175,11 +234,28 @@ func (l *LambdaRec) Equal(v Value) bool {
 
 func (*LambdaRec) Type() ValueType { return VLambdaRec }
 
-type List []Value
+type List struct {
+	Head Value
+	Tail *List
+}
 
-func NewList(vs ...Value) *List { res := List(vs); return &res }
-func (*List) Type() ValueType   { return VList }
-func (l *List) List() []Value   { return []Value(*l) }
+func NewList(vs ...Value) *List {
+	var top *List
+	for i := len(vs) - 1; i >= 0; i-- {
+		top = &List{
+			Head: vs[i],
+			Tail: top,
+		}
+	}
+	return top
+}
+func (*List) Type() ValueType { return VList }
+func (l *List) List() (res []Value) {
+	for ; l != nil; l = l.Tail {
+		res = append(res, l.Head)
+	}
+	return
+}
 func (l *List) String() string {
 	ll := l.List()
 	vs := make([]string, len(ll))
@@ -204,7 +280,15 @@ func (l *List) Equal(v Value) bool {
 	}
 	return true
 }
+func (l *List) Proto() *proto.Value {
+	var vs []*proto.Value
+	for ; l != nil; l = l.Tail {
+		vs = append(vs, l.Head.Proto())
+	}
+	return &proto.Value{&proto.Value_List{&proto.List{vs}}}
+}
 
+// TODO: store in reversed order so we can prepend more efficient
 type Vector []Value
 
 func NewVector(vs ...Value) *Vector { res := Vector(vs); return &res }
@@ -233,6 +317,13 @@ func (l *Vector) Equal(v Value) bool {
 		}
 	}
 	return true
+}
+func (v *Vector) Proto() *proto.Value {
+	vs := make([]*proto.Value, len(*v))
+	for i, v := range *v {
+		vs[i] = v.Proto()
+	}
+	return &proto.Value{&proto.Value_Vector{&proto.Vector{vs}}}
 }
 
 // TODO: mv string hash
@@ -278,18 +369,26 @@ func (d *Dict) Equal(v Value) bool {
 	return true
 }
 
+func (d *Dict) Proto() *proto.Value {
+	// XXX: sort kvpairs, translate to proto.KVPair
+	panic("not implemented")
+}
+
 type PrimFn Ident
 
 func NewPrimFn(a *Atom) *PrimFn  { res := PrimFn(a.Ident()); return &res }
 func (*PrimFn) Type() ValueType  { return VPrimFn }
 func (a *PrimFn) Ident() Ident   { return Ident(*a) }
-func (a *PrimFn) String() string { return a.Ident().String() }
+func (a *PrimFn) String() string { return a.Ident() }
 func (a *PrimFn) Equal(v Value) bool {
 	a0, ok := v.(*PrimFn)
 	if !ok {
 		return false
 	}
 	return a0.String() == a.String()
+}
+func (a *PrimFn) Proto() *proto.Value {
+	return &proto.Value{&proto.Value_PrimFn{&proto.PrimFn{a.Ident()}}}
 }
 
 type Ref uint64
@@ -304,4 +403,108 @@ func (r *Ref) Equal(v Value) bool {
 		return false
 	}
 	return r0.Uint() == r.Uint()
+}
+func (r *Ref) Proto() *proto.Value {
+	return &proto.Value{&proto.Value_Ref{&proto.Ref{r.Uint()}}}
+}
+
+type State struct {
+	Env  Env
+	Refs *Intmap
+}
+
+func NewState(env Env, refs *Intmap) *State {
+	return &State{
+		Env:  env,
+		Refs: refs,
+	}
+}
+func (*State) Type() ValueType { return VState }
+func (s *State) String() string {
+	return "" // XXX
+}
+func (s *State) Equal(v Value) bool {
+	return false // XXX
+}
+func (s *State) Proto() *proto.Value {
+	/*
+		return &proto.Value{&proto.Value_State{
+			s.Env.Proto(),
+			s.Refs.Proto(),
+		}}
+	*/
+	return nil //XXX
+}
+
+func Unproto(pv *proto.Value) Value {
+	if pv == nil {
+		return nil
+	}
+
+	switch pv := pv.GetValue().(type) {
+	case *proto.Value_Atom:
+		return NewAtom(NewIdent(pv.Atom.Atom))
+	case *proto.Value_Keyword:
+		return NewKeyword(NewIdent(pv.Keyword.Keyword))
+	case *proto.Value_String_:
+		return NewString(NewIdent(pv.String_.String_))
+	case *proto.Value_Boolean:
+		return NewBool(pv.Boolean.Boolean)
+	case *proto.Value_Num:
+		return NewNum(pv.Num.Num)
+	case *proto.Value_List:
+		l := pv.List
+		vs := make([]Value, len(l.Values))
+		for i, v := range l.Values {
+			vs[i] = Unproto(v)
+		}
+		return NewList(vs...)
+	case *proto.Value_Vector:
+		l := pv.Vector
+		vs := make([]Value, len(l.Values))
+		for i, v := range l.Values {
+			vs[i] = Unproto(v)
+		}
+		return NewVector(vs...)
+	case *proto.Value_PrimFn:
+		res := PrimFn(pv.PrimFn.Fn)
+		return &res
+	case *proto.Value_Dict:
+		d := pv.Dict
+		m := Dict(make(map[Value]Value))
+		for _, kvp := range d.Pairs {
+			m[Unproto(kvp.Key)] = Unproto(kvp.Value)
+		}
+		return &m
+	case *proto.Value_Ref:
+		return NewRef(pv.Ref.Ref)
+	case *proto.Value_Lambda:
+		l := pv.Lambda
+		bodies := make([]Value, len(l.Bodies))
+		for i, body := range l.Bodies {
+			bodies[i] = Unproto(body)
+		}
+		return NewLambda(l.Args, bodies,
+			Unproto(&proto.Value{&proto.Value_Env{l.Env}}).(Env))
+	case *proto.Value_LambdaRec:
+		return NewLambdaRec(pv.LambdaRec.Self,
+			Unproto(&proto.Value{&proto.Value_Lambda{pv.LambdaRec.Lambda}}).(*Lambda))
+	case *proto.Value_Env:
+		d := pv.Env
+		m := NewListEnv()
+		for _, kvp := range d.Pairs {
+			m.Set(kvp.Key, Unproto(kvp.Value))
+		}
+		return m
+	case *proto.Value_State:
+		/*
+			return NewState(
+				Unproto(&proto.Value{&proto.Value_Env{pv.State.Env}}).(Env),
+				Unproto(&proto.Value{&proto.Value_State{pv.State.State}}).(*State),
+			)
+		*/
+		return nil //XXX
+	default:
+		return nil
+	}
 }
