@@ -1,5 +1,5 @@
 package types
-
+/*
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
@@ -11,3 +11,4 @@ type Dec = sdk.Dec
 func NewDec(i int64) Dec {
 	return sdk.NewDec(i)
 }
+*/

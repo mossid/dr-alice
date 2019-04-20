@@ -16,23 +16,23 @@ func NewIdent(s string) string {
 type ValueType byte
 
 const (
-	VNULL ValueType = iota
-	VAtom
-	VKeyword
-	VString
-	VNumber
-	VBoolean
-	VList
-	VVec
-	VPrimFn
-	VDict
-	VRef
-	VHandle
-	VProcHandle
-	VLambda
-	VLambdaRec
-	VEnv
-	VState
+	TypeNULL ValueType = iota
+	TypeAtom
+	TypeKeyword
+	TypeString
+	TypeNumber
+	TypeBoolean
+	TypeList
+	TypeVec
+	TypePrimFn
+	TypeDict
+	TypeRef
+	TypeHandle
+	TypeProcHandle
+	TypeLambda
+	TypeLambdaRec
+	TypeEnv
+	TypeState
 )
 
 type Value interface {
@@ -45,7 +45,7 @@ type Value interface {
 type Atom Ident
 
 func NewAtom(str string) *Atom { res := Atom(NewIdent(str)); return &res }
-func (*Atom) Type() ValueType  { return VAtom }
+func (*Atom) Type() ValueType  { return TypeAtom }
 func (a *Atom) Ident() Ident   { return Ident(*a) }
 func (a *Atom) String() string { return a.Ident() }
 func (a *Atom) Equal(v Value) bool {
@@ -62,7 +62,7 @@ func (a *Atom) Proto() *proto.Value {
 type Keyword Ident
 
 func NewKeyword(str string) *Keyword { res := Keyword(NewIdent(str)); return &res }
-func (k *Keyword) Type() ValueType   { return VKeyword }
+func (k *Keyword) Type() ValueType   { return TypeKeyword }
 func (k *Keyword) Ident() Ident      { return Ident(*k) }
 func (k *Keyword) String() string    { return ":" + k.Ident() }
 func (k *Keyword) Equal(v Value) bool {
@@ -79,7 +79,7 @@ func (k *Keyword) Proto() *proto.Value {
 type String string
 
 func NewString(str string) *String { res := String(str); return &res }
-func (*String) Type() ValueType    { return VString }
+func (*String) Type() ValueType    { return TypeString }
 func (s *String) String() string   { return string(*s) } // TODO: fix
 func (s *String) Equal(v Value) bool {
 	s0, ok := v.(*String)
@@ -92,10 +92,30 @@ func (s *String) Proto() *proto.Value {
 	return &proto.Value{&proto.Value_String_{&proto.String{s.String()}}}
 }
 
+func (s *String) Slice(begin, end int) Sequence {
+	if end == -1 {
+		end = len(*s)
+	}
+	res := (*s)[begin:end]
+	return &res
+}
+
+func (s *String) Index(ix int) Value {
+	panic("unused function")
+}
+
+func (s *String) Length() int {
+	return len(*s)
+}
+
+func (s *String) Iterate(f func(int, Value) bool) {
+	panic("unused function")
+}
+
 type Bool bool
 
 func NewBool(b bool) *Bool    { res := Bool(b); return &res }
-func (*Bool) Type() ValueType { return VBoolean }
+func (*Bool) Type() ValueType { return TypeBoolean }
 func (b *Bool) Bool() bool    { return bool(*b) }
 func (b *Bool) String() string {
 	if *b {
@@ -124,7 +144,7 @@ func (b *Bool) Unproto(pv *proto.Value) {
 type Num int64
 
 func NewNum(i int64) *Num     { res := Num(i); return &res }
-func (*Num) Type() ValueType  { return VNumber }
+func (*Num) Type() ValueType  { return TypeNumber }
 func (n *Num) String() string { return strconv.FormatInt(n.Num(), 10) }
 func (n *Num) Num() int64     { return int64(*n) }
 func (n *Num) Equal(v Value) bool {
@@ -155,7 +175,7 @@ func NewLambda(args []Ident, bodies []Value, env Env) *Lambda {
 	res := Lambda{args, bodies, env}
 	return &res
 }
-func (*Lambda) Type() ValueType { return VLambda }
+func (*Lambda) Type() ValueType { return TypeLambda }
 func (l *Lambda) String() string {
 	bodies := make([]string, len(l.Bodies))
 	for i, body := range l.Bodies {
@@ -232,7 +252,16 @@ func (l *LambdaRec) Equal(v Value) bool {
 	return l.Lambda.Equal(l0.Lambda)
 }
 
-func (*LambdaRec) Type() ValueType { return VLambdaRec }
+func (*LambdaRec) Type() ValueType { return TypeLambdaRec }
+
+type Sequence interface {
+	Value
+	// Negative end means empty index: a[3:] -> a.Slice(3, -1)
+	Slice(int, int) Sequence
+	Index(int) Value
+	Length() int
+	Iterate(func(int, Value) bool)
+}
 
 type List struct {
 	Head Value
@@ -249,7 +278,7 @@ func NewList(vs ...Value) *List {
 	}
 	return top
 }
-func (*List) Type() ValueType { return VList }
+func (*List) Type() ValueType { return TypeList }
 func (l *List) List() (res []Value) {
 	for ; l != nil; l = l.Tail {
 		res = append(res, l.Head)
@@ -288,11 +317,64 @@ func (l *List) Proto() *proto.Value {
 	return &proto.Value{&proto.Value_List{&proto.List{vs}}}
 }
 
+func (l *List) Slice(begin, end int) Sequence {
+	if l == nil {
+		return nil
+	}
+	if end == 0 {
+		return nil
+	}
+
+	// Slice all
+	if begin == 0 && end == -1 {
+		return l
+	}
+
+	// Drop
+	if end == -1 {
+		return l.Tail.Slice(begin-1, end)
+	}
+
+	// Take
+	if begin == 0 {
+		return &List{
+			Head: l.Head,
+			Tail: l.Tail.Slice(0, end-1).(*List),
+		}
+	}
+
+	// Normal slicing -> reduce to take
+	return l.Tail.Slice(begin-1, end-1)
+}
+
+func (l *List) Index(ix int) Value {
+	if ix == 0 {
+		return l.Head
+	}
+	return l.Tail.Index(ix - 1)
+}
+
+func (l *List) Length() int {
+	if l == nil {
+		return 0
+	}
+	return l.Tail.Length() + 1
+}
+
+func (l *List) Iterate(f func(ix int, v Value) bool) {
+	for i := 0; l != nil; i++ {
+		if f(i, l.Head) {
+			return
+		}
+		l = l.Tail
+	}
+}
+
 // TODO: store in reversed order so we can prepend more efficient
 type Vector []Value
 
 func NewVector(vs ...Value) *Vector { res := Vector(vs); return &res }
-func (*Vector) Type() ValueType     { return VVec }
+func (*Vector) Type() ValueType     { return TypeVec }
 func (v *Vector) Vector() []Value   { return []Value(*v) }
 func (l *Vector) String() string {
 	vv := l.Vector()
@@ -326,6 +408,30 @@ func (v *Vector) Proto() *proto.Value {
 	return &proto.Value{&proto.Value_Vector{&proto.Vector{vs}}}
 }
 
+func (v *Vector) Slice(begin, end int) Sequence {
+	if end == -1 {
+		end = len(*v)
+	}
+	res := (*v)[begin:end]
+	return &res
+}
+
+func (v *Vector) Index(ix int) Value {
+	return (*v)[ix]
+}
+
+func (v *Vector) Length() int {
+	return len(*v)
+}
+
+func (v *Vector) Iterate(f func(int, Value) bool) {
+	for i, v := range *v {
+		if f(i, v) {
+			return
+		}
+	}
+}
+
 // TODO: mv string hash
 type Dict map[Value]Value
 
@@ -339,7 +445,7 @@ func NewDict(kvs ...Value) *Dict {
 	}
 	return &res
 }
-func (*Dict) Type() ValueType                  { return VDict }
+func (*Dict) Type() ValueType                  { return TypeDict }
 func (d *Dict) Get(k Value) (v Value, ok bool) { v, ok = (*d)[k]; return }
 func (d *Dict) Set(k Value, v Value)           { (*d)[k] = v }
 func (d *Dict) String() string {
@@ -370,14 +476,14 @@ func (d *Dict) Equal(v Value) bool {
 }
 
 func (d *Dict) Proto() *proto.Value {
-	// XXX: sort kvpairs, translate to proto.KVPair
+	// XXX: sort kvpairs, translate to proto.KTypePair
 	panic("not implemented")
 }
 
 type PrimFn Ident
 
 func NewPrimFn(a *Atom) *PrimFn  { res := PrimFn(a.Ident()); return &res }
-func (*PrimFn) Type() ValueType  { return VPrimFn }
+func (*PrimFn) Type() ValueType  { return TypePrimFn }
 func (a *PrimFn) Ident() Ident   { return Ident(*a) }
 func (a *PrimFn) String() string { return a.Ident() }
 func (a *PrimFn) Equal(v Value) bool {
@@ -394,7 +500,7 @@ func (a *PrimFn) Proto() *proto.Value {
 type Ref uint64
 
 func NewRef(u uint64) *Ref    { res := Ref(u); return &res }
-func (*Ref) Type() ValueType  { return VRef }
+func (*Ref) Type() ValueType  { return TypeRef }
 func (r *Ref) Uint() uint64   { return uint64(*r) }
 func (r *Ref) String() string { return "#" + strconv.FormatUint(r.Uint(), 10) }
 func (r *Ref) Equal(v Value) bool {
@@ -419,7 +525,7 @@ func NewState(env Env, refs *Intmap) *State {
 		Refs: refs,
 	}
 }
-func (*State) Type() ValueType { return VState }
+func (*State) Type() ValueType { return TypeState }
 func (s *State) String() string {
 	return "" // XXX
 }

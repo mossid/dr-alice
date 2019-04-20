@@ -43,6 +43,12 @@ func (s *Bindings) ToRadicle() Value {
 	}
 }
 
+type ModuleMeta struct {
+	Name    types.Ident
+	Exports []types.Ident
+	Doc     string
+}
+
 func BaseEval(s *Bindings, v Value) (*Bindings, Value, error) {
 	switch v := v.(type) {
 	case *Atom:

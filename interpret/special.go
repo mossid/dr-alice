@@ -1,7 +1,10 @@
 package radicle
 
+import "github.com/mossid/dr-alice/types"
+
 type SpecialForm func(*Bindings, []Value) (*Bindings, Value, error)
 
+// TODO: catch & match
 func MapSpecialForm(id Ident) SpecialForm {
 	switch id {
 	case "fn":
@@ -167,7 +170,81 @@ func cond(s *Bindings, v []Value) (*Bindings, Value, error) {
 	return BaseEval(s0, v[1])
 }
 
+func meta(v Value) (res ModuleMeta, err error) {
+	d, ok := v.(*Dict)
+	if !ok {
+		err = InvalidDeclaration("must be dict", v)
+		return
+	}
+	d0 := *d
+	module, ok := d0[types.NewKeyword("module")]
+	if !ok {
+		err = InvalidDeclaration("missing :module key", v)
+		return
+	}
+	module0, ok := module.(*Atom)
+	if !ok {
+		err = InvalidDeclaration(":module must be an atom", v)
+		return
+	}
+	doc, ok := d0[types.NewKeyword("doc")]
+	if !ok {
+		err = InvalidDeclaration("missing :doc key", v)
+		return
+	}
+	doc0, ok := doc.(*String)
+	if !ok {
+		err = InvalidDeclaration(":doc must be a string", v)
+		return
+	}
+	exports, ok := d0[types.NewKeyword("exports")]
+	if !ok {
+		err = InvalidDeclaration("missing :exports key", v)
+		return
+	}
+	exports0, ok := exports.(*Vector)
+	if !ok {
+		err = InvalidDeclaration(":exports must be a vector", v)
+		return
+	}
+
+	es := make([]string, exports0.Length())
+	exports0.Iterate(func(i int, v Value) (abort bool) {
+		v0, ok := v.(*Atom)
+		if !ok {
+			err = InvalidDeclaration(":exports must be a vector of atoms", v)
+			return true
+		}
+		es[i] = v0.Ident()
+		return
+	})
+
+	return ModuleMeta{module0.Ident(), es, doc0.String()}, nil
+}
 func module(s *Bindings, v []Value) (*Bindings, Value, error) {
+	if len(v) < 1 {
+		return nil, nil, WrongNumberArgsError("module", 1, len(v))
+	}
+	s0, m, err := BaseEval(s, v[0])
+	if err != nil {
+		return nil, nil, err
+	}
+	meta, err := meta(m)
+	if err != nil {
+		return nil, nil, err
+	}
+	// XXX: make a new scope
+	for _, form := range v[1:] {
+		s0, _, err = BaseEval(form) // XXX: change to Eval
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	for _, e := meta.Exports {
+		
+	}
+
 	return nil, nil, nil // XXX
 }
 

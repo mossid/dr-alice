@@ -71,7 +71,7 @@ func (env *listEnv) Proto() *proto.Value {
 }
 
 func (env *listEnv) Type() ValueType {
-	return VEnv
+	return TypeEnv
 }
 
 func (env *listEnv) String() string {
@@ -130,5 +130,5 @@ func (env *mapEnv) Proto() *proto.Value {
 	panic("not implemented")
 }
 func (env *mapEnv) Type() ValueType {
-	return VEnv
+	return TypeEnv
 }
