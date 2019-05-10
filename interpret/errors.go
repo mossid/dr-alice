@@ -51,3 +51,7 @@ func ThrownError(label string, v Value) error {
 func InvalidDeclaration(desc string, v Value) error {
 	return newError("Module", desc, v.String())
 }
+
+func UndefinedExports(e string) error {
+	return newError("Module", "undefined exports", e)
+}

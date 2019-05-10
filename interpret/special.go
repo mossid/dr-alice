@@ -235,17 +235,32 @@ func module(s *Bindings, v []Value) (*Bindings, Value, error) {
 	}
 	// XXX: make a new scope
 	for _, form := range v[1:] {
-		s0, _, err = BaseEval(form) // XXX: change to Eval
+		s0, _, err = BaseEval(s, form) // XXX: change to Eval
 		if err != nil {
 			return nil, nil, err
 		}
 	}
 
-	for _, e := meta.Exports {
-		
+	env := s0.Env
+
+	for _, e := range meta.Exports {
+		if _, ok := env.Get(e); !ok {
+			return nil, nil, UndefinedExports(e)
+		}
 	}
 
-	return nil, nil, nil // XXX
+	exports := make([]types.Value, len(meta.Exports))
+	for i, e := range meta.Exports {
+		exports[i] = types.NewAtom(e)
+	}
+
+	modu := types.NewDict(
+		types.NewKeyword("module"), types.NewAtom(meta.Name),
+		types.NewKeyword("env"), env.CloneMutable(),
+		types.NewKeyword("exports"), types.NewVector(exports...),
+	)
+
+	return s, modu, nil // XXX
 }
 
 /*

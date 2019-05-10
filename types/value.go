@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -152,7 +153,7 @@ func (n *Num) Equal(v Value) bool {
 	if !ok {
 		return false
 	}
-	return n0 == n
+	return *n0 == *n
 }
 func (n *Num) Proto() *proto.Value {
 	return &proto.Value{&proto.Value_Num{&proto.Num{n.Num()}}}
@@ -296,14 +297,17 @@ func (l *List) String() string {
 func (l *List) Equal(v Value) bool {
 	l0, ok := v.(*List)
 	if !ok {
+		fmt.Println("111")
 		return false
 	}
 	ll, l0l := l.List(), l0.List()
 	if len(ll) != len(l0l) {
+		fmt.Println("222")
 		return false
 	}
 	for i, v := range ll {
 		if !l0l[i].Equal(v) {
+			fmt.Println("333")
 			return false
 		}
 	}
@@ -458,17 +462,21 @@ func (d *Dict) String() string {
 func (d *Dict) Equal(v Value) bool {
 	d0, ok := v.(*Dict)
 	if !ok {
+		fmt.Println("aaa")
 		return false
 	}
 	if len(*d) != len(*d0) {
+		fmt.Println("bbb")
 		return false
 	}
 	strmap := make(map[string]Value)
 	for k, v := range *d {
+		fmt.Println("ccc")
 		strmap[k.String()] = v
 	}
 	for k, v := range *d0 {
 		if !strmap[k.String()].Equal(v) {
+			fmt.Println(k.String(), strmap[k.String()], v)
 			return false
 		}
 	}
